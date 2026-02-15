@@ -4,14 +4,18 @@
 <meta charset="UTF-8">
 <title>Snack Inventory System</title>
 
+<!-- 🔥 FIREBASE SDK (COMPAT) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <style>
 body { font-family: Arial; background:#f5f5f5; padding:20px; }
-h1, h2 { text-align:center; }
+h1, h2, h3 { text-align:center; }
 table { width:100%; border-collapse: collapse; margin-top:20px; background:#fff; }
 th, td { border:1px solid #ccc; padding:10px; text-align:center; }
 th { background:#222; color:#fff; }
 input { padding:6px; }
-button { padding:8px 14px; cursor:pointer; font-size:14px; margin:3px; }
+button { padding:8px 14px; cursor:pointer; font-size:14px; margin:4px; }
 .section { background:#fff; padding:15px; margin-top:20px; }
 .hidden { display:none; }
 .delete-btn { background:#e74c3c; color:#fff; border:none; }
@@ -20,14 +24,15 @@ button { padding:8px 14px; cursor:pointer; font-size:14px; margin:3px; }
 
 <body>
 
-<!-- LOGIN -->
+<!-- 🔐 LOGIN -->
 <div id="loginBox" class="section">
   <h2>🔐 Enter Password</h2>
   <input type="password" id="password" placeholder="Password">
+  <br><br>
   <button onclick="login()">Login</button>
 </div>
 
-<!-- MAIN APP -->
+<!-- 🛒 MAIN APP -->
 <div id="app" class="hidden">
 
 <h1>🛒 Snack Inventory & Sales</h1>
@@ -62,112 +67,175 @@ button { padding:8px 14px; cursor:pointer; font-size:14px; margin:3px; }
 
 <div style="text-align:center;">
   <button onclick="sellAll()">✅ Sell</button>
-  <button onclick="undoLast()">↩️ Undo Last Action</button>
+  <button onclick="undoLast()">↩️ Undo</button>
 </div>
 
 <div class="section">
-<h3>🧾 Purchase Log</h3>
-<ul id="purchaseLog"></ul>
+  <h3>🧾 Purchase Log</h3>
+  <ul id="purchaseLog"></ul>
 </div>
 
 </div>
 
 <script>
+/* =========================
+   🔐 PASSWORD
+========================= */
 const PASSWORD = "snack_attack";
 
-let DEFAULT_ITEMS = [
- {name:"Tedhe Medhe",qty:21},
- {name:"Mad Angles",qty:3},
- {name:"Kurkure Puffcorn",qty:5}
+/* =========================
+   🔥 FIREBASE CONFIG (YOURS)
+========================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyBBpTceIiJeQCqh8NGK9L8dAOCow2i2Ii4",
+  authDomain: "snack-inventory-a96f4.firebaseapp.com",
+  projectId: "snack-inventory-a96f4",
+  storageBucket: "snack-inventory-a96f4.appspot.com",
+  messagingSenderId: "786616769718",
+  appId: "1:786616769718:web:dfd3d42f167773b1e0da17"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const docRef = db.collection("inventory").doc("main");
+
+/* =========================
+   📦 DEFAULT DATA
+========================= */
+const DEFAULT_ITEMS = [
+  {name:"Tedhe Medhe", qty:21},
+  {name:"Mad Angles", qty:3},
+  {name:"Kurkure Puffcorn", qty:5}
 ];
 
-let items = JSON.parse(localStorage.getItem("items")) || DEFAULT_ITEMS;
-let logs = JSON.parse(localStorage.getItem("logs")) || [];
-let totalSale = parseFloat(localStorage.getItem("totalSale")) || 0;
-let history = JSON.parse(localStorage.getItem("history")) || [];
+let items = [];
+let logs = [];
+let totalSale = 0;
+let history = [];
 
+/* =========================
+   🔐 LOGIN
+========================= */
 function login(){
-  if(document.getElementById("password").value === PASSWORD){
-    document.getElementById("loginBox").style.display="none";
-    document.getElementById("app").classList.remove("hidden");
-    renderAll();
-  } else alert("Wrong password");
+  if(password.value === PASSWORD){
+    loginBox.style.display="none";
+    app.classList.remove("hidden");
+    loadData();
+  } else {
+    alert("Wrong password");
+  }
 }
 
+/* =========================
+   ☁️ LOAD FROM FIREBASE
+========================= */
+async function loadData(){
+  const snap = await docRef.get();
+  if(snap.exists){
+    const d = snap.data();
+    items = d.items || DEFAULT_ITEMS;
+    logs = d.logs || [];
+    totalSale = d.totalSale || 0;
+    history = d.history || [];
+  } else {
+    items = DEFAULT_ITEMS;
+    save();
+  }
+  renderAll();
+}
+
+/* =========================
+   ☁️ SAVE TO FIREBASE
+========================= */
 function save(){
-  localStorage.setItem("items",JSON.stringify(items));
-  localStorage.setItem("logs",JSON.stringify(logs));
-  localStorage.setItem("totalSale",totalSale);
-  localStorage.setItem("history",JSON.stringify(history));
+  docRef.set({ items, logs, totalSale, history });
 }
 
+/* =========================
+   ↩️ SNAPSHOT (UNDO)
+========================= */
 function snapshot(){
-  history.push(JSON.parse(JSON.stringify({items,logs,totalSale})));
+  history.push(JSON.parse(JSON.stringify({items, logs, totalSale})));
 }
 
+/* =========================
+   🧾 RENDER UI
+========================= */
 function renderAll(){
-  const body=document.querySelector("#inventoryTable tbody");
-  body.innerHTML="";
+  const body = document.querySelector("#inventoryTable tbody");
+  body.innerHTML = "";
   items.forEach((i,idx)=>{
-    body.innerHTML+=`
-    <tr>
-      <td>${i.name}</td>
-      <td>${i.qty}</td>
-      <td><input id="q${idx}" type="number"></td>
-      <td><input id="b${idx}"></td>
-      <td><input id="a${idx}" type="number"></td>
-      <td>
-        <button class="delete-btn" onclick="deleteItem(${idx})">Delete</button>
-      </td>
-    </tr>`;
+    body.innerHTML += `
+      <tr>
+        <td>${i.name}</td>
+        <td>${i.qty}</td>
+        <td><input id="q${idx}" type="number"></td>
+        <td><input id="b${idx}"></td>
+        <td><input id="a${idx}" type="number"></td>
+        <td><button class="delete-btn" onclick="deleteItem(${idx})">Delete</button></td>
+      </tr>
+    `;
   });
-  document.getElementById("totalSale").textContent=totalSale;
+  document.getElementById("totalSale").textContent = totalSale;
   renderLogs();
 }
 
 function renderLogs(){
-  const ul=document.getElementById("purchaseLog");
-  ul.innerHTML="";
-  logs.forEach(l=>ul.innerHTML+=`<li>${l}</li>`);
+  purchaseLog.innerHTML = "";
+  logs.forEach(l => purchaseLog.innerHTML += `<li>${l}</li>`);
 }
 
+/* =========================
+   💰 SELL ITEMS
+========================= */
 function sellAll(){
   snapshot();
   items.forEach((i,idx)=>{
-    let q=parseInt(document.getElementById(`q${idx}`).value);
-    let b=document.getElementById(`b${idx}`).value;
-    let a=parseFloat(document.getElementById(`a${idx}`).value);
-    if(q>0 && q<=i.qty){
-      i.qty-=q;
-      totalSale+=a;
-      logs.push(`${b} bought ${q} × ${i.name} for ₹${a}`);
+    let q = parseInt(document.getElementById(`q${idx}`).value);
+    let b = document.getElementById(`b${idx}`).value;
+    let a = parseFloat(document.getElementById(`a${idx}`).value);
+    if(q>0 && q<=i.qty && b && a>0){
+      i.qty -= q;
+      totalSale += a;
+      logs.push(`${b} bought ${q} × ${i.name} for ₹${a} on ${new Date().toLocaleString()}`);
     }
   });
   save(); renderAll();
 }
 
+/* =========================
+   ↩️ UNDO (SALES ONLY)
+========================= */
 function undoLast(){
   if(!history.length) return alert("Nothing to undo");
-  let last=history.pop();
-  items=last.items; logs=last.logs; totalSale=last.totalSale;
+  let last = history.pop();
+  items = last.items;
+  logs = last.logs;
+  totalSale = last.totalSale;
   save(); renderAll();
 }
 
+/* =========================
+   ➕ ADD / UPDATE ITEM
+========================= */
 function addOrUpdateItem(){
   snapshot();
-  let name=document.getElementById("newItemName").value.trim();
-  let qty=parseInt(document.getElementById("newItemQty").value);
-  if(!name||qty<=0) return alert("Enter valid data");
+  let name = newItemName.value.trim();
+  let qty = parseInt(newItemQty.value);
+  if(!name || qty<=0) return alert("Enter valid data");
 
-  let found=items.find(i=>i.name.toLowerCase()===name.toLowerCase());
-  if(found) found.qty+=qty;
-  else items.push({name,qty});
+  let found = items.find(i=>i.name.toLowerCase()===name.toLowerCase());
+  if(found) found.qty += qty;
+  else items.push({name, qty});
 
   save(); renderAll();
-  document.getElementById("newItemName").value="";
-  document.getElementById("newItemQty").value="";
+  newItemName.value = "";
+  newItemQty.value = "";
 }
 
+/* =========================
+   ❌ DELETE ITEM
+========================= */
 function deleteItem(index){
   if(!confirm("Delete this item?")) return;
   snapshot();
