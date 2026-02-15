@@ -23,7 +23,7 @@ button { padding:8px 14px; cursor:pointer; font-size:14px; margin:3px; }
 <!-- LOGIN -->
 <div id="loginBox" class="section">
   <h2>🔐 Enter Password</h2>
-  <input type="password" id="password" placeholder="Password">
+  <input type="password" id="password">
   <button onclick="login()">Login</button>
 </div>
 
@@ -32,7 +32,6 @@ button { padding:8px 14px; cursor:pointer; font-size:14px; margin:3px; }
 
 <h1>🛒 Snack Inventory & Sales</h1>
 
-<!-- ADD / UPDATE ITEM -->
 <div class="section">
   <h3>➕ Add / Update Item</h3>
   <input id="newItemName" placeholder="Item Name">
@@ -44,10 +43,10 @@ button { padding:8px 14px; cursor:pointer; font-size:14px; margin:3px; }
 <thead>
 <tr>
   <th>Item</th>
-  <th>Available Qty</th>
+  <th>Available</th>
   <th>Sell Qty</th>
   <th>Buyer</th>
-  <th>Amount (₹)</th>
+  <th>Amount ₹</th>
   <th>Action</th>
 </tr>
 </thead>
@@ -62,7 +61,7 @@ button { padding:8px 14px; cursor:pointer; font-size:14px; margin:3px; }
 
 <div style="text-align:center;">
   <button onclick="sellAll()">✅ Sell</button>
-  <button onclick="undoLast()">↩️ Undo Last Action</button>
+  <button onclick="undoSale()">↩️ Undo Last Sale</button>
 </div>
 
 <div class="section">
@@ -75,21 +74,21 @@ button { padding:8px 14px; cursor:pointer; font-size:14px; margin:3px; }
 <script>
 const PASSWORD = "snack_attack";
 
-let DEFAULT_ITEMS = [
- {name:"Tedhe Medhe",qty:21},
- {name:"Mad Angles",qty:3},
- {name:"Kurkure Puffcorn",qty:5}
+let items = JSON.parse(localStorage.getItem("items")) || [
+  {name:"Tedhe Medhe",qty:21},
+  {name:"Mad Angles",qty:3}
 ];
 
-let items = JSON.parse(localStorage.getItem("items")) || DEFAULT_ITEMS;
 let logs = JSON.parse(localStorage.getItem("logs")) || [];
 let totalSale = parseFloat(localStorage.getItem("totalSale")) || 0;
-let history = JSON.parse(localStorage.getItem("history")) || [];
+
+/* 🔥 SALES HISTORY ONLY */
+let saleHistory = JSON.parse(localStorage.getItem("saleHistory")) || [];
 
 function login(){
-  if(document.getElementById("password").value === PASSWORD){
-    document.getElementById("loginBox").style.display="none";
-    document.getElementById("app").classList.remove("hidden");
+  if(password.value === PASSWORD){
+    loginBox.style.display="none";
+    app.classList.remove("hidden");
     renderAll();
   } else alert("Wrong password");
 }
@@ -98,80 +97,94 @@ function save(){
   localStorage.setItem("items",JSON.stringify(items));
   localStorage.setItem("logs",JSON.stringify(logs));
   localStorage.setItem("totalSale",totalSale);
-  localStorage.setItem("history",JSON.stringify(history));
-}
-
-function snapshot(){
-  history.push(JSON.parse(JSON.stringify({items,logs,totalSale})));
+  localStorage.setItem("saleHistory",JSON.stringify(saleHistory));
 }
 
 function renderAll(){
-  const body=document.querySelector("#inventoryTable tbody");
-  body.innerHTML="";
+  const body = document.querySelector("#inventoryTable tbody");
+  body.innerHTML = "";
   items.forEach((i,idx)=>{
-    body.innerHTML+=`
+    body.innerHTML += `
     <tr>
       <td>${i.name}</td>
       <td>${i.qty}</td>
       <td><input id="q${idx}" type="number"></td>
       <td><input id="b${idx}"></td>
       <td><input id="a${idx}" type="number"></td>
-      <td>
-        <button class="delete-btn" onclick="deleteItem(${idx})">Delete</button>
-      </td>
+      <td><button class="delete-btn" onclick="deleteQty(${idx})">Delete Qty</button></td>
     </tr>`;
   });
-  document.getElementById("totalSale").textContent=totalSale;
+  totalSaleEl.textContent = totalSale;
   renderLogs();
 }
 
 function renderLogs(){
-  const ul=document.getElementById("purchaseLog");
-  ul.innerHTML="";
-  logs.forEach(l=>ul.innerHTML+=`<li>${l}</li>`);
+  purchaseLog.innerHTML="";
+  logs.forEach(l=>purchaseLog.innerHTML+=`<li>${l}</li>`);
 }
 
+/* ✅ SALE */
 function sellAll(){
-  snapshot();
+  let saleBatch = [];
+
   items.forEach((i,idx)=>{
-    let q=parseInt(document.getElementById(`q${idx}`).value);
-    let b=document.getElementById(`b${idx}`).value;
-    let a=parseFloat(document.getElementById(`a${idx}`).value);
+    let q = parseInt(document.getElementById(`q${idx}`).value);
+    let b = document.getElementById(`b${idx}`).value;
+    let a = parseFloat(document.getElementById(`a${idx}`).value);
+
     if(q>0 && q<=i.qty){
-      i.qty-=q;
-      totalSale+=a;
+      i.qty -= q;
+      totalSale += a;
       logs.push(`${b} bought ${q} × ${i.name} for ₹${a}`);
+      saleBatch.push({index:idx, qty:q, amount:a});
     }
   });
+
+  if(saleBatch.length){
+    saleHistory.push(saleBatch);
+    save(); renderAll();
+  }
+}
+
+/* ↩️ UNDO SALE ONLY */
+function undoSale(){
+  if(!saleHistory.length) return alert("No sale to undo");
+
+  let lastSale = saleHistory.pop();
+
+  lastSale.forEach(s=>{
+    if(items[s.index]){
+      items[s.index].qty += s.qty;
+      totalSale -= s.amount;
+      logs.pop();
+    }
+  });
+
   save(); renderAll();
 }
 
-function undoLast(){
-  if(!history.length) return alert("Nothing to undo");
-  let last=history.pop();
-  items=last.items; logs=last.logs; totalSale=last.totalSale;
-  save(); renderAll();
-}
-
+/* INVENTORY MANAGEMENT (PERMANENT) */
 function addOrUpdateItem(){
-  snapshot();
-  let name=document.getElementById("newItemName").value.trim();
-  let qty=parseInt(document.getElementById("newItemQty").value);
-  if(!name||qty<=0) return alert("Enter valid data");
+  let name = newItemName.value.trim();
+  let qty = parseInt(newItemQty.value);
+  if(!name || qty<=0) return alert("Invalid input");
 
-  let found=items.find(i=>i.name.toLowerCase()===name.toLowerCase());
-  if(found) found.qty+=qty;
+  let found = items.find(i=>i.name.toLowerCase()===name.toLowerCase());
+  if(found) found.qty += qty;
   else items.push({name,qty});
 
   save(); renderAll();
-  document.getElementById("newItemName").value="";
-  document.getElementById("newItemQty").value="";
+  newItemName.value=""; newItemQty.value="";
 }
 
-function deleteItem(index){
-  if(!confirm("Delete this item?")) return;
-  snapshot();
-  items.splice(index,1);
+function deleteQty(idx){
+  let item = items[idx];
+  let d = parseInt(prompt(`Delete quantity (Available ${item.qty})`));
+  if(!d || d<=0 || d>item.qty) return;
+
+  item.qty -= d;
+  if(item.qty === 0) items.splice(idx,1);
+
   save(); renderAll();
 }
 </script>
