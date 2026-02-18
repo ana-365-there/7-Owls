@@ -116,7 +116,7 @@ function renderAll() {
   const rows = items.map((i, idx) => `
     <tr>
       <td>${i.name}</td>
-      <td>
+      <td class="qty-cell">
       <button onclick="changeQty(${idx}, -1)">−</button>
       ${i.qty}
       <button onclick="changeQty(${idx}, 1)">+</button>
