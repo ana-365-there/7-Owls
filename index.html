@@ -2,43 +2,31 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Snack Inventory System</title>
+<title>7 Owls Sellers</title>
 
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
-<style>
-body { font-family: Arial; background:#f5f5f5; padding:20px; }
-h1, h2, h3 { text-align:center; }
-table { width:100%; border-collapse: collapse; margin-top:20px; background:#fff; }
-th, td { border:1px solid #ccc; padding:10px; text-align:center; }
-th { background:#222; color:#fff; }
-input { padding:6px; }
-button { padding:8px 14px; cursor:pointer; font-size:14px; margin:4px; }
-.section { background:#fff; padding:15px; margin-top:20px; }
-.hidden { display:none; }
-.delete-btn { background:#e74c3c; color:#fff; border:none; }
-hr { margin:6px 0; }
-</style>
 </head>
 
 <body>
+<!-- 🔐 LOGIN -->
 
-<div id="loginBox" class="section">
-  <h2>🔐 Enter Password</h2>
+<div id="loginBox" class="sec">
+  <h2>Enter Password</h2>
   <input type="password" id="password" placeholder="Password">
-  <br><br>
   <button onclick="login()">Login</button>
 </div>
 
 <div id="app" class="hidden">
+<h1> Snack Inventory & Sales </h1>
 
-<h1>🛒 Snack Inventory & Sales</h1>
-
+<!-- ADD / UPDATE ITEM -->
 <div class="section">
-  <h3>➕ Add / Update Item</h3>
-  <input id="newItemName" placeholder="Item Name">
-  <input id="newItemQty" type="number" placeholder="Quantity">
+  <h2> Add / Update Item</h2>
+  <input id="newItemName" placeholder="Item Name" size="50">
+  <input id="newItemQty" type="number" placeholder="Quantity" width="50">
   <button onclick="addOrUpdateItem()">Add / Update</button>
 </div>
 
@@ -63,241 +51,19 @@ hr { margin:6px 0; }
 </table>
 
 <div style="text-align:center;">
-  <button onclick="sellAll()">✅ Sell</button>
-  <button onclick="undoLast()">↩️ Undo</button>
+  <button onclick="sellAll()">Sell</button>
+  <button onclick="undoLast()">Undo</button>
 </div>
 
 <div class="section">
+  <h2>View Sales By Date</h2>
+  <input type="date" id="dateFilter">
+  <button onclick="filterByDate()">View</button>
   <h3>🧾 Purchase Log</h3>
   <ul id="purchaseLog"></ul>
 </div>
 
 </div>
-
-<script>
-/* =========================
-   🔐 PASSWORD
-========================= */
-const PASSWORD = "snack_attack";
-
-/* =========================
-   🔥 FIREBASE CONFIG
-========================= */
-const firebaseConfig = {
-  apiKey: "AIzaSyBBpTceIiJeQCqh8NGK9L8dAOCow2i2Ii4",
-  authDomain: "snack-inventory-a96f4.firebaseapp.com",
-  projectId: "snack-inventory-a96f4",
-};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const docRef = db.collection("inventory").doc("main");
-
-/* =========================
-   📦 DEFAULT ITEMS
-========================= */
-const DEFAULT_ITEMS = [
-  {name:"Tedhe Medhe", qty:21},
-  {name:"Mad Angles", qty:3},
-  {name:"Kurkure Puffcorn", qty:5}
-];
-
-let items = [];
-let logs = [];
-let totalSale = 0;
-let history = [];
-let dailyHistory = {};
-
-/* =========================
-   📅 DATE UTILS
-========================= */
-function getToday(){
-  return new Date().toISOString().split("T")[0];
-}
-
-/* =========================
-   🔐 LOGIN
-========================= */
-function login(){
-  if(password.value === PASSWORD){
-    loginBox.style.display="none";
-    app.classList.remove("hidden");
-    loadData();
-  } else {
-    alert("Wrong password");
-  }
-}
-
-/* =========================
-   ☁️ LOAD DATA + DAILY RESET
-========================= */
-async function loadData(){
-  const snap = await docRef.get();
-  const today = getToday();
-
-  if(snap.exists){
-    const d = snap.data();
-
-    if(d.currentDate !== today){
-      dailyHistory = d.dailyHistory || {};
-      dailyHistory[d.currentDate] = {
-        logs: d.logs || [],
-        totalSale: d.totalSale || 0
-      };
-
-      items = d.items || DEFAULT_ITEMS;
-      logs = [];
-      totalSale = 0;
-      history = [];
-
-      await docRef.set({
-        currentDate: today,
-        items,
-        logs,
-        totalSale,
-        dailyHistory,
-        history
-      });
-    } else {
-      items = d.items || DEFAULT_ITEMS;
-      logs = d.logs || [];
-      totalSale = d.totalSale || 0;
-      history = d.history || [];
-      dailyHistory = d.dailyHistory || {};
-    }
-  } else {
-    items = DEFAULT_ITEMS;
-    await docRef.set({
-      currentDate: today,
-      items,
-      logs: [],
-      totalSale: 0,
-      dailyHistory: {},
-      history: []
-    });
-  }
-
-  renderAll();
-}
-
-/* =========================
-   ☁️ SAVE
-========================= */
-function save(){
-  docRef.set({
-    currentDate: getToday(),
-    items,
-    logs,
-    totalSale,
-    history,
-    dailyHistory
-  });
-}
-
-/* =========================
-   ↩️ SNAPSHOT
-========================= */
-function snapshot(){
-  history.push(JSON.parse(JSON.stringify({items, logs, totalSale})));
-}
-
-/* =========================
-   🧾 RENDER
-========================= */
-function renderAll(){
-  const body = document.querySelector("#inventoryTable tbody");
-  body.innerHTML = "";
-
-  items.forEach((i,idx)=>{
-    body.innerHTML += `
-      <tr>
-        <td>${i.name}</td>
-        <td>${i.qty}</td>
-        <td><input id="q${idx}" type="number"></td>
-        <td><input id="b${idx}"></td>
-        <td><input id="a${idx}" type="number"></td>
-        <td><button class="delete-btn" onclick="deleteItem(${idx})">Delete</button></td>
-      </tr>`;
-  });
-
-  totalSaleElem.textContent = totalSale;
-  renderLogs();
-}
-
-const totalSaleElem = document.getElementById("totalSale");
-
-function renderLogs(){
-  purchaseLog.innerHTML = `<li><b>📅 ${getToday()}</b><hr></li>`;
-  logs.forEach(l => purchaseLog.innerHTML += `<li>${l}</li>`);
-
-  for(const d in dailyHistory){
-    purchaseLog.innerHTML += `
-      <li style="margin-top:12px">
-        <b>📆 ${d} — ₹${dailyHistory[d].totalSale}</b>
-        <hr>
-      </li>`;
-  }
-}
-
-/* =========================
-   💰 SELL
-========================= */
-function sellAll(){
-  snapshot();
-  items.forEach((i,idx)=>{
-    let q = +document.getElementById(`q${idx}`).value;
-    let b = document.getElementById(`b${idx}`).value;
-    let a = +document.getElementById(`a${idx}`).value;
-
-    if(q>0 && q<=i.qty && b && a>0){
-      i.qty -= q;
-      totalSale += a;
-      logs.push(`${b} bought ${q} × ${i.name} for ₹${a} (${new Date().toLocaleTimeString()})`);
-    }
-  });
-  save(); renderAll();
-}
-
-/* =========================
-   ↩️ UNDO
-========================= */
-function undoLast(){
-  if(!history.length) return alert("Nothing to undo");
-  let last = history.pop();
-  items = last.items;
-  logs = last.logs;
-  totalSale = last.totalSale;
-  save(); renderAll();
-}
-
-/* =========================
-   ➕ ADD ITEM
-========================= */
-function addOrUpdateItem(){
-  snapshot();
-  let name = newItemName.value.trim();
-  let qty = +newItemQty.value;
-  if(!name || qty<=0) return alert("Invalid input");
-
-  let found = items.find(i=>i.name.toLowerCase()===name.toLowerCase());
-  found ? found.qty += qty : items.push({name, qty});
-
-  save(); renderAll();
-  newItemName.value = "";
-  newItemQty.value = "";
-}
-
-/* =========================
-   ❌ DELETE
-========================= */
-function deleteItem(i){
-  if(confirm("Delete this item?")){
-    snapshot();
-    items.splice(i,1);
-    save(); renderAll();
-  }
-}
-</script>
-
+<script src="script.js"></script>
 </body>
 </html>
